@@ -1,57 +1,36 @@
-FROM debian:bullseye-slim
+# Base image
+FROM ubuntu:20.04
 
-# Install dependencies
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install base dependencies
 RUN apt-get update && apt-get install -y \
-  wget \
-  curl \
-  gnupg \
-  ca-certificates \
-  fonts-liberation \
-  libappindicator3-1 \
-  libasound2 \
-  libatk-bridge2.0-0 \
-  libatk1.0-0 \
-  libcups2 \
-  libdbus-1-3 \
-  libgdk-pixbuf2.0-0 \
-  libnspr4 \
-  libnss3 \
-  libx11-xcb1 \
-  libxcomposite1 \
-  libxdamage1 \
-  libxrandr2 \
-  xdg-utils \
-  unzip \
-  --no-install-recommends && \
-  apt-get clean && rm -rf /var/lib/apt/lists/*
+    wget gnupg curl x11vnc xvfb fluxbox wmctrl \
+    fonts-ipafont-gothic fonts-wqy-zenhei \
+    libxss1 libappindicator1 libindicator7 libdbus-glib-1-2 \
+    libasound2 libatk-bridge2.0-0 libgtk-3-0 libnss3 libx11-xcb1 \
+    --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
-# Install Chrome (Stable)
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-  apt install -y ./google-chrome-stable_current_amd64.deb && \
-  rm google-chrome-stable_current_amd64.deb
+# Install Chrome
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+ && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
+    > /etc/apt/sources.list.d/google-chrome.list \
+ && apt-get update \
+ && apt-get install -y google-chrome-stable \
+ && rm -rf /var/lib/apt/lists/*
 
-# Setup user
-RUN groupadd -r chrome && useradd -r -g chrome -G audio,video chrome && \
-    mkdir -p /home/chrome && chown -R chrome:chrome /home/chrome
+# Create user
+RUN useradd -m chromeuser && mkdir -p /home/chromeuser && chown -R chromeuser:chromeuser /home/chromeuser
+USER chromeuser
+WORKDIR /home/chromeuser
 
-# Set workdir
-WORKDIR /app
-COPY . .
+# Add startup script
+COPY --chown=chromeuser:chromeuser startup.sh .
+RUN chmod +x startup.sh
 
-# Install Node (for puppeteer or your app)
-RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs
+# Expose ports:
+# 5900 - VNC GUI
+# 9222 - Chrome DevTools Protocol endpoint
+EXPOSE 5900 9222
 
-# Optional: install puppeteer or your app deps
-COPY package*.json ./
-RUN npm install
-
-# Expose the port
-EXPOSE 3000
-
-# Set env to disable sandbox
-ENV CHROME_BIN="/usr/bin/google-chrome"
-ENV PUPPETEER_EXECUTABLE_PATH="/usr/bin/google-chrome"
-
-# Default CMD (replace with your app script if needed)
-CMD ["google-chrome", "--headless", "--disable-gpu", "--no-sandbox", "--remote-debugging-port=3000", "--disable-dev-shm-usage"]
+CMD ["./startup.sh"] 
