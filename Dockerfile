@@ -1,30 +1,122 @@
-FROM debian:bullseye-slim
+# Chrome Headless Dockerfile for Render with WebSocket Access
+FROM ubuntu:22.04
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CHROME_BIN=/usr/bin/google-chrome
+ENV DISPLAY=:99
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
-  wget gnupg ca-certificates \
-  libasound2 libatk-bridge2.0-0 libatk1.0-0 libcups2 libdbus-1-3 \
-  libgdk-pixbuf2.0-0 libnspr4 libnss3 libx11-xcb1 libxcomposite1 \
-  libxdamage1 libxrandr2 xdg-utils --no-install-recommends && \
-  rm -rf /var/lib/apt/lists/*
+    wget \
+    gnupg \
+    ca-certificates \
+    apt-transport-https \
+    software-properties-common \
+    curl \
+    unzip \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Google Chrome Stable
-RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
-    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
-    apt-get update && apt-get install -y google-chrome-stable --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+# Add Google Chrome repository
+RUN wget -q -O - https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
+    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list
 
-# Suppress dbus errors
-ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+# Install Google Chrome
+RUN apt-get update && apt-get install -y \
+    google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user
+RUN groupadd -r chrome && useradd -r -g chrome -G audio,video chrome \
+    && mkdir -p /home/chrome && chown -R chrome:chrome /home/chrome
+
+# Set working directory
+WORKDIR /home/chrome
+
+# Copy startup script
+COPY <<EOF /home/chrome/start-chrome.sh
+#!/bin/bash
+# Start Xvfb in the background
+Xvfb :99 -screen 0 1920x1080x24 &
+
+# Wait for Xvfb to start
+sleep 2
+
+# Start Chrome with remote debugging
+exec google-chrome \
+    --headless \
+    --no-sandbox \
+    --disable-setuid-sandbox \
+    --disable-dev-shm-usage \
+    --disable-gpu \
+    --disable-background-timer-throttling \
+    --disable-backgrounding-occluded-windows \
+    --disable-renderer-backgrounding \
+    --disable-features=TranslateUI \
+    --disable-extensions \
+    --disable-plugins \
+    --disable-images \
+    --disable-javascript \
+    --virtual-time-budget=5000 \
+    --run-all-compositor-stages-before-draw \
+    --disable-background-networking \
+    --disable-background-networking \
+    --disable-default-apps \
+    --disable-extensions \
+    --disable-sync \
+    --disable-translate \
+    --hide-scrollbars \
+    --metrics-recording-only \
+    --mute-audio \
+    --no-first-run \
+    --safebrowsing-disable-auto-update \
+    --ignore-certificate-errors \
+    --ignore-ssl-errors \
+    --ignore-certificate-errors-spki-list \
+    --remote-debugging-port=9222 \
+    --remote-debugging-address=0.0.0.0 \
+    --window-size=1920,1080 \
+    --user-data-dir=/tmp/chrome-user-data \
+    --disable-web-security \
+    --disable-features=VizDisplayCompositor \
+    --about:blank
+EOF
+
+# Make the script executable
+RUN chmod +x /home/chrome/start-chrome.sh
+
+# Alternative simplified startup script
+COPY <<EOF /home/chrome/simple-start.sh
+#!/bin/bash
+exec google-chrome \
+    --headless \
+    --no-sandbox \
+    --disable-setuid-sandbox \
+    --disable-dev-shm-usage \
+    --disable-gpu \
+    --remote-debugging-port=9222 \
+    --remote-debugging-address=0.0.0.0 \
+    --window-size=1920,1080 \
+    --user-data-dir=/tmp/chrome-user-data \
+    --disable-web-security \
+    --about:blank
+EOF
+
+RUN chmod +x /home/chrome/simple-start.sh
+
+# Change ownership of files
+RUN chown -R chrome:chrome /home/chrome
+
+# Switch to chrome user
+USER chrome
+
+# Expose the remote debugging port
+EXPOSE 9222
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:9222/json/version || exit 1
 
 # Start Chrome
-CMD ["google-chrome-stable", \
-     "--headless=new", \
-     "--disable-gpu", \
-     "--no-sandbox", \
-     "--remote-debugging-address=0.0.0.0", \
-     "--remote-debugging-port=9222", \
-     "--disable-dev-shm-usage", \
-     "about:blank"]
-
-EXPOSE 9222
+CMD ["/home/chrome/simple-start.sh"]
