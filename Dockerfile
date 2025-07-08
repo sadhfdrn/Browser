@@ -6,6 +6,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV CHROME_BIN=/usr/bin/google-chrome
 ENV DISPLAY=:99
 ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
+ENV CHROME_DEVEL_SANDBOX=/usr/lib/chromium-browser/chrome-sandbox
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -16,7 +17,7 @@ RUN apt-get update && apt-get install -y \
     software-properties-common \
     curl \
     unzip \
-    xvfb \
+    dbus-x11 \
     && rm -rf /var/lib/apt/lists/*
 
 # Add Google Chrome repository
@@ -90,17 +91,24 @@ RUN chmod +x /home/chrome/start-chrome.sh
 # Alternative simplified startup script
 COPY <<EOF /home/chrome/simple-start.sh
 #!/bin/bash
+
+# Create temp directory for Chrome
+mkdir -p /tmp/chrome-user-data
+chmod 777 /tmp/chrome-user-data
+
+# Start Chrome with full headless configuration
 exec google-chrome \
     --headless=new \
     --no-sandbox \
     --disable-setuid-sandbox \
     --disable-dev-shm-usage \
     --disable-gpu \
+    --disable-gpu-sandbox \
     --disable-software-rasterizer \
     --disable-background-timer-throttling \
     --disable-backgrounding-occluded-windows \
     --disable-renderer-backgrounding \
-    --disable-features=TranslateUI,VizDisplayCompositor \
+    --disable-features=TranslateUI,VizDisplayCompositor,AudioServiceOutOfProcess,VizDisplayCompositor \
     --disable-extensions \
     --disable-plugins \
     --disable-default-apps \
@@ -115,15 +123,32 @@ exec google-chrome \
     --disable-logging \
     --disable-gpu-logging \
     --silent \
+    --disable-web-security \
+    --disable-features=VizDisplayCompositor \
+    --use-gl=swiftshader \
+    --disable-software-rasterizer \
+    --disable-background-networking \
+    --disable-background-timer-throttling \
+    --disable-backgrounding-occluded-windows \
+    --disable-renderer-backgrounding \
+    --disable-field-trial-config \
+    --disable-ipc-flooding-protection \
+    --enable-features=NetworkService,NetworkServiceInProcess \
+    --force-color-profile=srgb \
+    --metrics-recording-only \
+    --no-crash-upload \
+    --no-default-browser-check \
+    --no-first-run \
+    --no-pings \
+    --no-service-autorun \
+    --password-store=basic \
+    --use-mock-keychain \
     --remote-debugging-port=9222 \
     --remote-debugging-address=0.0.0.0 \
     --window-size=1920,1080 \
     --user-data-dir=/tmp/chrome-user-data \
-    --disable-web-security \
     --virtual-time-budget=5000 \
     --run-all-compositor-stages-before-draw \
-    --disable-background-networking \
-    --disable-ipc-flooding-protection \
     --about:blank
 EOF
 
