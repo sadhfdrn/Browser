@@ -1,2 +1,5 @@
-FROM browserless/chrome
-EXPOSE 3000
+FROM femtopixel/google-chrome-headless:latest
+
+# Expose the remote debugging port
+EXPOSE 9222
+ 
