@@ -5,6 +5,7 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CHROME_BIN=/usr/bin/google-chrome
 ENV DISPLAY=:99
+ENV DBUS_SESSION_BUS_ADDRESS=/dev/null
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
@@ -90,16 +91,39 @@ RUN chmod +x /home/chrome/start-chrome.sh
 COPY <<EOF /home/chrome/simple-start.sh
 #!/bin/bash
 exec google-chrome \
-    --headless \
+    --headless=new \
     --no-sandbox \
     --disable-setuid-sandbox \
     --disable-dev-shm-usage \
     --disable-gpu \
+    --disable-software-rasterizer \
+    --disable-background-timer-throttling \
+    --disable-backgrounding-occluded-windows \
+    --disable-renderer-backgrounding \
+    --disable-features=TranslateUI,VizDisplayCompositor \
+    --disable-extensions \
+    --disable-plugins \
+    --disable-default-apps \
+    --disable-sync \
+    --disable-translate \
+    --hide-scrollbars \
+    --mute-audio \
+    --no-first-run \
+    --no-default-browser-check \
+    --no-zygote \
+    --single-process \
+    --disable-logging \
+    --disable-gpu-logging \
+    --silent \
     --remote-debugging-port=9222 \
     --remote-debugging-address=0.0.0.0 \
     --window-size=1920,1080 \
     --user-data-dir=/tmp/chrome-user-data \
     --disable-web-security \
+    --virtual-time-budget=5000 \
+    --run-all-compositor-stages-before-draw \
+    --disable-background-networking \
+    --disable-ipc-flooding-protection \
     --about:blank
 EOF
 
