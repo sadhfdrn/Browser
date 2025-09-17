@@ -1,3 +1,8 @@
 FROM browserless/chrome
+ENV PREBOOT_CHROME=true
+ENV PREBOOT_QUANTITY=1
+ENV KEEP_ALIVE=true
+ENV CHROME_REFRESH_TIME=3600000   
+# recycle Chrome every 1h
 EXPOSE 3000 
 
